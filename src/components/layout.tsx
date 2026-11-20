@@ -22,7 +22,7 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react';
-import crest from '../assets/images/crest-160.jpg';
+import mark from '../assets/images/gameskii-mark.svg';
 import { useStore } from '../lib/store';
 import { href, navigate } from '../lib/router';
 import { GAMES } from '../lib/assets';
@@ -49,7 +49,7 @@ export function IconRail({ path }: { path: string }) {
   return (
     <aside className="hidden md:flex w-[60px] shrink-0 flex-col items-center py-4 gap-3 sticky top-0 h-screen">
       <a href={href('/')} className="block rounded-xl overflow-hidden ring-1 ring-white/10 h-10 w-10" aria-label="Halaman utama Gameskii" title="Halaman utama">
-        <img src={crest} alt="Gameskii" className="h-full w-full object-cover" />
+        <span className="h-full w-full grid place-items-center bg-ink-850"><img src={mark} alt="Gameskii" className="h-8 w-8" /></span>
       </a>
       <div className="w-7 h-px bg-line my-1" />
       <a href={href(profile ? '/paspor' : '/dashboard')} title={profile ? profile.ign : 'Tamu'} className="block">

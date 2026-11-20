@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, ChevronRight, Flame, Gamepad2, IdCard, LogIn, Menu, Search, ShieldCheck, Trophy, UploadCloud, Users, X } from 'lucide-react';
-import crest from '../assets/images/crest-160.jpg';
+import wordmark from '../assets/images/gameskii-wordmark-light.svg';
 import esiLogo from '../assets/images/esi-diy.png';
 import { useStore } from '../lib/store';
 import { href, navigate } from '../lib/router';
@@ -49,8 +49,7 @@ function LandingNav() {
     <header className={`sticky top-0 z-50 transition-colors ${scrolled ? 'bg-ink-950/90 backdrop-blur-xl border-b border-white/[0.06]' : 'bg-transparent'}`}>
       <div className="max-w-[1320px] mx-auto px-4 sm:px-6 h-[68px] flex items-center gap-3 sm:gap-6">
         <a href={href('/')} className="flex items-center gap-3 shrink-0" aria-label="Gameskii">
-          <img src={crest} alt="" className="h-9 w-9 rounded-[10px] ring-1 ring-white/15" />
-          <span className="font-display text-[26px] text-white leading-none tracking-wide">Gameskii</span>
+          <img src={wordmark} alt="Gameskii" className="h-[26px] w-auto" />
         </a>
         <nav className="hidden lg:flex items-center gap-1 text-[13.5px]" aria-label="Navigasi halaman">
           {links.map(([l, id]) => (
@@ -455,7 +454,7 @@ export function LandingFooter() {
       </div>
       <div className="border-t border-white/[0.05]">
         <div className="max-w-[1320px] mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-2 text-[11.5px] text-muted">
-          <span className="inline-flex items-center gap-2"><img src={crest} alt="" className="h-5 w-5 rounded" />Gameskii × ESI DIY</span>
+          <img src={wordmark} alt="Gameskii" className="h-4 w-auto opacity-80" />
           <span>© {new Date().getFullYear()} {ESI_DIY.name}</span>
         </div>
       </div>

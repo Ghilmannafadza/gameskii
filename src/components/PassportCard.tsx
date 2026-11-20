@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { toPng } from 'html-to-image';
 import { Check, Copy, Download, MapPin, ShieldAlert, ShieldCheck } from 'lucide-react';
-import crest from '../assets/images/crest-160.jpg';
+import mark from '../assets/images/gameskii-mark.svg';
 import type { RankedAthlete } from '../lib/store';
 import { avatarFor } from '../lib/avatar';
 import { useStore } from '../lib/store';
@@ -101,7 +101,7 @@ export function PassportCard({ athlete, showPrivate = false }: { athlete: Ranked
 
         {/* header strip */}
         <div className="relative flex items-center gap-3 px-5 sm:px-6 py-3.5 border-b border-white/10 bg-ink-950/20">
-          <img src={crest} alt="" className="h-9 w-9 rounded-lg object-cover ring-1 ring-white/25" />
+          <span className="h-9 w-9 rounded-lg bg-ink-950/50 ring-1 ring-white/20 grid place-items-center shrink-0"><img src={mark} alt="Gameskii" className="h-7 w-7" /></span>
           <div className="min-w-0">
             <p className="font-display text-[22px] text-white leading-none tracking-wide">Paspor Atlet</p>
             <p className="text-[9.5px] text-white/55 font-mono tracking-[0.16em] mt-1 truncate">ATHLETE PASSPORT · DIY</p>

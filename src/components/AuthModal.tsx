@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, KeyRound, Mail } from 'lucide-react';
-import crest from '../assets/images/crest-160.jpg';
+import wordmark from '../assets/images/gameskii-wordmark-light.svg';
 import { useStore } from '../lib/store';
 import { navigate } from '../lib/router';
 import { getStoredSupabaseConfig } from '../lib/supabase';
@@ -43,7 +43,7 @@ export function AuthModal() {
   return (
     <Modal open={Boolean(authOpen)} onClose={closeAuth} width="max-w-md">
       <div className="text-center -mt-2">
-        <img src={crest} alt="" className="h-12 w-12 rounded-xl mx-auto ring-1 ring-white/10" />
+        <img src={wordmark} alt="Gameskii" className="h-8 w-auto mx-auto" />
         <h2 className="font-display text-[34px] text-white mt-3">{mode === 'signup' ? 'Daftar Akun' : 'Masuk'}</h2>
         <p className="text-[13px] text-muted">{mode === 'signup' ? 'Satu akun untuk satu paspor atlet.' : 'Masuk untuk mengelola paspor dan hasil turnamenmu.'}</p>
       </div>

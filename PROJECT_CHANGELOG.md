@@ -1,5 +1,11 @@
 # Changelog
 
+## v7 - Logo Gameskii & link preview (2026-11-20)
+
+- Logo diganti dengan logo resmi Gameskii (dari @gameskii.official), digambar ulang sebagai SVG: wordmark untuk navbar landing, modal masuk, footer; ikon jajar genjang untuk panel kiri, kartu paspor, dan favicon.
+- Link preview: meta Open Graph + Twitter Card dengan gambar `public/og-image.png` (1200x630) berisi judul, deskripsi, dan top atlet.
+- URL gambar preview dibuat absolut otomatis saat build di Vercel. Kalau memakai domain sendiri, isi env `SITE_URL` (contoh `https://gameskii.id`) di Vercel.
+
 ## v6 - Foto per game, logo ESI hanya di footer (2026-11-20)
 
 - Foto landing diganti foto event asli per game dari Wikimedia Commons: Free Fire World Cup, MLBB di Malaysia Digital Content Festival, PUBG Mobile Star Challenge, PES di Gamescom, dan Piala Presiden Esports untuk hero. Kartu kompetisi memakai 10 foto berbeda.
