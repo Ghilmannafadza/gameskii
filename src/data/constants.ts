@@ -1,22 +1,23 @@
-import { GameName, GameRole, Regency, RegencyCode } from '../types';
+import { GameName, GameRole, MatchType, Regency, RegencyCode } from '../types';
 
-export const REGENCY_OPTIONS: { name: Regency; code: RegencyCode; badgeColor: string }[] = [
-  { name: 'Sleman', code: 'SLM', badgeColor: 'bg-[#C8A75E]/15 text-[#DFCA88] border-[#C8A75E]/30' },
-  { name: 'Bantul', code: 'BTL', badgeColor: 'bg-blue-500/15 text-blue-300 border-blue-500/30' },
-  { name: 'Yogyakarta', code: 'YOG', badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
-  { name: 'Gunungkidul', code: 'GKD', badgeColor: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
-  { name: 'Kulon Progo', code: 'KLP', badgeColor: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
+export const REGENCY_OPTIONS: { name: Regency; code: RegencyCode }[] = [
+  { name: 'Sleman', code: 'SLM' },
+  { name: 'Bantul', code: 'BTL' },
+  { name: 'Yogyakarta', code: 'YOG' },
+  { name: 'Gunungkidul', code: 'GKD' },
+  { name: 'Kulon Progo', code: 'KLP' },
 ];
 
-export const GAME_OPTIONS: GameName[] = [
-  'Mobile Legends',
-  'Free Fire',
-  'PUBG Mobile',
-  'e-Football Console',
+export const GAME_OPTIONS: GameName[] = ['Free Fire', 'Mobile Legends', 'PUBG Mobile', 'e-Football Console'];
+
+export const MATCH_TYPES: { value: MatchType; label: string }[] = [
+  { value: 'Turnamen Komunitas', label: 'Turnamen Komunitas' },
+  { value: 'BePro Series', label: 'BePro Series' },
+  { value: 'Tournament by Game Developer', label: 'Turnamen Publisher' },
 ];
 
 export const MLBB_ROLES: GameRole[] = ['Jungler', 'Roamer', 'Midlaner', 'Goldlaner', 'Explaner'];
-export const FREE_FIRE_ROLES: GameRole[] = ['Rusher', 'Flanker', 'Support', 'Sniper'];
+export const FREE_FIRE_ROLES: GameRole[] = ['Rusher', 'Flanker', 'Support', 'Sniper', 'In-Game Leader (IGL)'];
 export const PUBGM_ROLES: GameRole[] = ['Fragger', 'Scout', 'In-Game Leader (IGL)', 'Support', 'Sniper'];
 export const EFOOTBALL_ROLES: GameRole[] = ['Striker', 'Midlaner', 'Support'];
 
@@ -26,7 +27,7 @@ export function getRolesByGame(game: GameName): GameRole[] {
     case 'Free Fire': return FREE_FIRE_ROLES;
     case 'PUBG Mobile': return PUBGM_ROLES;
     case 'e-Football Console': return EFOOTBALL_ROLES;
-    default: return MLBB_ROLES;
+    default: return FREE_FIRE_ROLES;
   }
 }
 
@@ -37,61 +38,52 @@ export function getRegencyCode(regency: Regency): RegencyCode {
     case 'Yogyakarta': return 'YOG';
     case 'Gunungkidul': return 'GKD';
     case 'Kulon Progo': return 'KLP';
-    case 'Belum Terverifikasi': return 'UNK';
-    default: return 'YOG';
+    default: return 'UNK';
   }
 }
 
-// User specified format: DIY-[REGENCY_CODE]-[4_RANDOM_DIGITS] (e.g., DIY-SLM-8829)
-export function generateGameskiiId(regency: Regency): string {
+/** DIY-[REGENCY_CODE]-[4 digits]; regenerates until it does not collide with `taken`. */
+export function generateGameskiiId(regency: Regency, taken: Set<string> = new Set()): string {
   const code = getRegencyCode(regency);
-  const randomNum = Math.floor(1000 + Math.random() * 9000);
-  return `DIY-${code}-${randomNum}`;
-}
-
-export function getEloTier(elo: number): { name: string; color: string; bg: string; border: string } {
-  if (elo >= 1600) {
-    return { 
-      name: 'Grand Master DIY', 
-      color: 'text-[#DFCA88]', 
-      bg: 'bg-[#C8A75E]/20', 
-      border: 'border-[#C8A75E]/60' 
-    };
-  } else if (elo >= 1400) {
-    return { 
-      name: 'Master DIY', 
-      color: 'text-amber-300', 
-      bg: 'bg-amber-950/60', 
-      border: 'border-amber-500/50' 
-    };
-  } else if (elo >= 1200) {
-    return { 
-      name: 'Challenger DIY', 
-      color: 'text-blue-300', 
-      bg: 'bg-blue-950/60', 
-      border: 'border-blue-500/50' 
-    };
-  } else if (elo >= 1000) {
-    return { 
-      name: 'Prospect DIY', 
-      color: 'text-slate-300', 
-      bg: 'bg-slate-800/60', 
-      border: 'border-slate-600' 
-    };
+  for (let i = 0; i < 200; i++) {
+    const id = `DIY-${code}-${Math.floor(1000 + Math.random() * 9000)}`;
+    if (!taken.has(id)) return id;
   }
-  return { 
-    name: 'Rookie DIY', 
-    color: 'text-slate-400', 
-    bg: 'bg-slate-900/60', 
-    border: 'border-slate-800' 
-  };
+  return `DIY-${code}-${Date.now().toString().slice(-6)}`;
 }
 
-// Achievement points only, NOT opponent-adjusted Elo.
-// Any legacy result outside the podium receives zero points.
+export const BASE_POINTS = 1200;
+
+export const TIERS = [
+  { name: 'Rookie', min: 0, level: 1 },
+  { name: 'Prospect', min: 1000, level: 2 },
+  { name: 'Challenger', min: 1200, level: 3 },
+  { name: 'Master', min: 1400, level: 4 },
+  { name: 'Grand Master', min: 1600, level: 5 },
+] as const;
+
+export function getTier(points: number) {
+  let idx = 0;
+  TIERS.forEach((t, i) => { if (points >= t.min) idx = i; });
+  const tier = TIERS[idx];
+  const next = TIERS[idx + 1];
+  const progress = next ? Math.round(((points - tier.min) / (next.min - tier.min)) * 100) : 100;
+  return { ...tier, next, progress: Math.max(0, Math.min(100, progress)), toNext: next ? next.min - points : 0 };
+}
+
+/** Kept for compatibility with the old UI naming. */
+export function getEloTier(points: number) {
+  return { name: getTier(points).name };
+}
+
+// Achievement points only (podium), NOT opponent-adjusted Elo.
 export function getRankEloDelta(rank: number): number {
   if (rank === 1) return 50;
   if (rank === 2) return 35;
   if (rank === 3) return 25;
   return 0;
 }
+
+export const RANK_LABEL: Record<number, string> = { 1: 'Juara 1', 2: 'Juara 2', 3: 'Juara 3' };
+
+export const DEMO_REFEREE_CODE = 'WASIT-DIY-2026';

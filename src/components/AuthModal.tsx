@@ -1,292 +1,83 @@
-import React, { useState } from 'react';
-import { 
-  Shield, 
-  X, 
-  Sparkles, 
-  KeyRound,
-  Mail
-} from 'lucide-react';
-import { AthleteProfile } from '../types';
-import { getSupabaseClient } from '../lib/supabase';
+import React, { useEffect, useState } from 'react';
+import { Eye, EyeOff, KeyRound, Mail } from 'lucide-react';
+import crest from '../assets/images/crest-160.jpg';
+import { useStore } from '../lib/store';
+import { navigate } from '../lib/router';
+import { getStoredSupabaseConfig } from '../lib/supabase';
+import { Modal } from './ui';
 
-interface AuthModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  activeAthlete: AthleteProfile | null;
-  onSelectAthlete: (athlete: AthleteProfile | null) => void;
-  onTriggerOnboarding: () => void;
-}
-
-export const AuthModal: React.FC<AuthModalProps> = ({
-  isOpen,
-  onClose,
-  activeAthlete,
-  onSelectAthlete,
-  onTriggerOnboarding,
-}) => {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+export function AuthModal() {
+  const { authOpen, closeAuth, openAuth, signIn, signUp, openOnboarding, toast, state } = useStore();
+  const mode = authOpen || 'signin';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [show, setShow] = useState(false);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const remote = getStoredSupabaseConfig().isConfigured;
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setErr('');
+    setPassword('');
+  }, [authOpen]);
 
-  const handleGoogleAuth = async () => {
-    setIsLoading(true);
-    setErrorMsg('');
-    try {
-      const supabase = getSupabaseClient();
-      if (supabase) {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin,
-          },
-        });
-        if (error) throw error;
-      } else {
-        // Local simulation: trigger new athlete onboarding or mock Google login
-        setTimeout(() => {
-          setIsLoading(false);
-          onTriggerOnboarding();
-          onClose();
-        }, 500);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg(err.message || 'Gagal login via Google.');
-      setIsLoading(false);
-    }
-  };
-
-  const handleEmailAuth = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    try {
-      const supabase = getSupabaseClient();
-      if (supabase) {
-        if (mode === 'signup') {
-          const { error } = await supabase.auth.signUp({
-            email,
-            password,
-          });
-          if (error) throw error;
-          setSuccessMsg('Pendaftaran berhasil! Silakan verifikasi email Anda.');
-          onTriggerOnboarding();
-        } else {
-          const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          if (error) throw error;
-          setSuccessMsg('Berhasil masuk.');
-          onClose();
-        }
-      } else {
-        // Local demo mode
-        setTimeout(() => {
-          setIsLoading(false);
-          if (mode === 'signup') {
-            onTriggerOnboarding();
-          } else {
-            // Demo mode: create an actual local profile; do not impersonate a roster-imported athlete.
-            onTriggerOnboarding();
-          }
-          onClose();
-        }, 500);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg(err.message || 'Autentikasi gagal.');
-    } finally {
-      setIsLoading(false);
+    setBusy(true);
+    setErr('');
+    const res = mode === 'signup' ? await signUp(email, password) : await signIn(email, password);
+    setBusy(false);
+    if (!res.ok) return setErr(res.error);
+    closeAuth();
+    if (mode === 'signup') {
+      toast('Akun dibuat. Lengkapi paspor atletmu.');
+      openOnboarding();
+    } else {
+      toast('Selamat datang kembali!');
+      if (!window.location.hash || window.location.hash === '#/') navigate('/dashboard');
+      const acc = state.accounts.find((a) => a.email === email.trim().toLowerCase());
+      if (acc && !state.profiles.some((p) => p.user_id === acc.id)) openOnboarding();
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-md my-8 rounded-3xl bg-[#0B1D3A] border border-[#3B3B3B] p-6 sm:p-8 text-left shadow-2xl">
-        
-        {/* Close */}
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-[#071326] transition-colors"
-        >
-          <X className="h-5 w-5" />
-        </button>
-
-        {/* Header */}
-        <div className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#DFCA88] via-[#C8A75E] to-[#8C6D27] p-0.5 shadow-lg shadow-[#C8A75E]/20">
-            <div className="flex h-full w-full items-center justify-center rounded-[14px] bg-[#0B1D3A]">
-              <Shield className="h-6 w-6 text-[#C8A75E]" />
-            </div>
-          </div>
-          <h2 className="mt-3 text-2xl font-bold text-white font-display">
-            {mode === 'signin' ? 'MASUK KE GAMESKII DIY' : 'DAFTAR PASPOR ATLET BARU'}
-          </h2>
-          <p className="text-xs text-slate-300 mt-1">
-            Sistem Database Esport DIY & Paspor ELO Atlet
-          </p>
-        </div>
-
-        {errorMsg && (
-          <div className="mt-4 p-3 rounded-xl bg-rose-950/60 border border-rose-800/80 text-xs text-rose-300">
-            {errorMsg}
-          </div>
-        )}
-
-        {successMsg && (
-          <div className="mt-4 p-3 rounded-xl bg-emerald-950/60 border border-emerald-800/80 text-xs text-emerald-300">
-            {successMsg}
-          </div>
-        )}
-
-        {/* Google OAuth Button */}
-        <div className="mt-6">
-          <button
-            onClick={handleGoogleAuth}
-            disabled={isLoading}
-            className="w-full py-3 px-4 rounded-xl bg-[#071326] hover:bg-[#102548] border border-[#3B3B3B] flex items-center justify-center gap-3 text-xs font-semibold text-white transition-all shadow-sm group"
-          >
-            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>Lanjutkan dengan Google Account</span>
-          </button>
-        </div>
-
-        <div className="relative my-5">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[#3B3B3B]" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-[#0B1D3A] px-3 text-slate-400 font-mono">ATAU EMAIL</span>
-          </div>
-        </div>
-
-        {/* Email & Password Form */}
-        <form onSubmit={handleEmailAuth} className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Alamat Email
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="atlet@esports.jogja.id"
-                className="w-full rounded-xl bg-[#071326] border border-[#3B3B3B] pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-[#C8A75E] focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Password
-            </label>
-            <div className="relative">
-              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full rounded-xl bg-[#071326] border border-[#3B3B3B] pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-[#C8A75E] focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-[#DFCA88] via-[#C8A75E] to-[#9F7E36] text-[#0B1D3A] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-[#C8A75E]/20 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
-          >
-            <span>{mode === 'signin' ? 'Masuk ke Paspor Atlet' : 'Buat Akun & Lengkapi Profil Paspor'}</span>
-          </button>
-        </form>
-
-        <div className="mt-3 text-center">
-          <button
-            onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-            className="text-xs text-slate-300 hover:text-[#DFCA88] transition-colors"
-          >
-            {mode === 'signin' 
-              ? 'Belum punya Paspor Atlet? Buat akun sekarang' 
-              : 'Sudah punya akun? Masuk di sini'}
-          </button>
-        </div>
-
-        {/* Quick Demo Switcher Section */}
-        <div className="mt-6 pt-5 border-t border-[#3B3B3B]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
-              PILIH PROFIL CEPAT (DEMO ATLET DIY)
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => {
-                // Demo mode: create an actual local profile; do not impersonate a roster-imported athlete.
-            onTriggerOnboarding();
-                onClose();
-              }}
-              className="p-2 rounded-xl bg-[#071326] border border-[#3B3B3B] hover:border-[#C8A75E]/60 text-left transition-colors"
-            >
-              <p className="text-xs font-bold text-white truncate">Xypher.Jogja</p>
-              <p className="text-[10px] text-[#DFCA88] font-mono">DIY-SLM-8829</p>
-            </button>
-
-            <button
-              onClick={() => {
-                onSelectAthlete(INITIAL_DIY_ATHLETES[1]);
-                onClose();
-              }}
-              className="p-2 rounded-xl bg-[#071326] border border-[#3B3B3B] hover:border-[#C8A75E]/60 text-left transition-colors"
-            >
-              <p className="text-xs font-bold text-white truncate">Mataram_Ghost</p>
-              <p className="text-[10px] text-[#DFCA88] font-mono">DIY-YOG-4102</p>
-            </button>
-          </div>
-
-          <button
-            onClick={() => {
-              onTriggerOnboarding();
-              onClose();
-            }}
-            className="w-full mt-2 py-2 px-3 rounded-xl bg-[#071326] hover:bg-[#102548] text-xs font-semibold text-[#DFCA88] border border-[#C8A75E]/40 flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Simulasi Pendaftaran Atlet Baru (+ Buat DIY ID)</span>
-          </button>
-        </div>
-
+    <Modal open={Boolean(authOpen)} onClose={closeAuth} width="max-w-md">
+      <div className="text-center -mt-2">
+        <img src={crest} alt="" className="h-12 w-12 rounded-xl mx-auto ring-1 ring-white/10" />
+        <h2 className="font-display text-[34px] text-white mt-3">{mode === 'signup' ? 'Daftar Akun' : 'Masuk'}</h2>
+        <p className="text-[13px] text-muted">{mode === 'signup' ? 'Satu akun untuk satu paspor atlet.' : 'Masuk untuk mengelola paspor dan hasil turnamenmu.'}</p>
       </div>
-    </div>
+
+      <div className="mt-5 flex rounded-xl bg-ink-750 p-1">
+        <button onClick={() => openAuth('signin')} className={`top-tab flex-1 justify-center ${mode === 'signin' ? 'active' : ''}`}>Masuk</button>
+        <button onClick={() => openAuth('signup')} className={`top-tab flex-1 justify-center ${mode === 'signup' ? 'active' : ''}`}>Daftar</button>
+      </div>
+
+      <form onSubmit={submit} className="mt-5 space-y-3.5">
+        {err && <div className="rounded-lg bg-rose/15 text-[#ffb3cb] text-[13px] px-3 py-2.5" role="alert">{err}</div>}
+        <label className="block">
+          <span className="label">Email</span>
+          <span className="relative block">
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+            <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input !pl-10" placeholder="nama@email.com" />
+          </span>
+        </label>
+        <label className="block">
+          <span className="label">Password</span>
+          <span className="relative block">
+            <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+            <input type={show ? 'text' : 'password'} required minLength={mode === 'signup' ? 8 : undefined} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} className="input !pl-10 !pr-10" placeholder={mode === 'signup' ? 'Minimal 8 karakter' : '••••••••'} />
+            <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white" aria-label={show ? 'Sembunyikan password' : 'Tampilkan password'}>
+              {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </span>
+        </label>
+        <button type="submit" disabled={busy} className="btn btn-gold w-full !py-3">{busy ? 'Memproses…' : mode === 'signup' ? 'Buat Akun' : 'Masuk'}</button>
+      </form>
+
+      <p className="text-[11.5px] text-muted text-center mt-4 leading-relaxed">
+        {remote ? 'Terhubung ke Supabase Auth.' : 'Mode demo lokal: akun tersimpan di browser ini saja. Hubungkan Supabase di Pengaturan untuk akun sungguhan.'}
+      </p>
+    </Modal>
   );
-};
+}

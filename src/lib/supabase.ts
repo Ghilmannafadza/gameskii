@@ -1,8 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { AthleteProfile, MatchSubmission } from '../types';
-import { PILOT_FREE_FIRE_ATHLETES } from '../data/pilot';
 
-// Keys from env or localStorage
+// Optional Supabase connection. The app works fully offline with localStorage.
 const ENV_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const ENV_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
@@ -23,23 +21,17 @@ export function saveStoredSupabaseConfig(url: string, anonKey: string) {
     localStorage.removeItem(STORAGE_KEY_URL);
     localStorage.removeItem(STORAGE_KEY_ANON);
   }
+  supabaseInstance = null;
 }
 
-// Singleton client instance
 let supabaseInstance: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient | null {
   const { url, anonKey, isConfigured } = getStoredSupabaseConfig();
   if (!isConfigured) return null;
-
   if (!supabaseInstance) {
     try {
-      supabaseInstance = createClient(url, anonKey, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-        },
-      });
+      supabaseInstance = createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true } });
     } catch (err) {
       console.warn('Failed to initialize Supabase client:', err);
       return null;
@@ -48,203 +40,120 @@ export function getSupabaseClient(): SupabaseClient | null {
   return supabaseInstance;
 }
 
-// Local mock persistence for instant out-of-the-box operation
-const LOCAL_STORAGE_ATHLETES = 'gameskii_athletes_data_ff_pilot_v3';
-const LOCAL_STORAGE_MATCHES = 'gameskii_matches_data_ff_pilot_v3';
-const LOCAL_STORAGE_CURRENT_USER = 'gameskii_current_user_ff_pilot_v3';
-
-export function getLocalAthletes(): AthleteProfile[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_ATHLETES);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error(e);
-  }
-  localStorage.setItem(LOCAL_STORAGE_ATHLETES, JSON.stringify(PILOT_FREE_FIRE_ATHLETES));
-  return PILOT_FREE_FIRE_ATHLETES;
-}
-
-export function saveLocalAthletes(athletes: AthleteProfile[]) {
-  localStorage.setItem(LOCAL_STORAGE_ATHLETES, JSON.stringify(athletes));
-}
-
-export function getLocalMatches(): MatchSubmission[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_MATCHES);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error(e);
-  }
-  // No fabricated Verified matches. Imported podium history lives in pilot-free-fire.json.
-  localStorage.setItem(LOCAL_STORAGE_MATCHES, '[]');
-  return [];
-}
-
-export function saveLocalMatches(matches: MatchSubmission[]) {
-  localStorage.setItem(LOCAL_STORAGE_MATCHES, JSON.stringify(matches));
-}
-
-export function getLocalActiveAthlete(): AthleteProfile | null {
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_CURRENT_USER);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error(e);
-  }
-  // Never auto-login as a real participant imported from a tournament.
-  return null;
-}
-
-export function setLocalActiveAthlete(athlete: AthleteProfile | null) {
-  if (athlete) {
-    localStorage.setItem(LOCAL_STORAGE_CURRENT_USER, JSON.stringify(athlete));
-  } else {
-    localStorage.removeItem(LOCAL_STORAGE_CURRENT_USER);
-  }
-}
-
-export const saveLocalActiveAthlete = setLocalActiveAthlete;
-
-// Complete copyable SQL Schema for Supabase
+// Copyable SQL schema for the application tables (separate from supabase/pilot_schema.sql).
 export const SUPABASE_SQL_SCHEMA = `-- ==========================================================
--- GAMESKII MVP: DIY ESPORTS PASSPORT & LEADERBOARD SCHEMA
--- Midnight-Navy Esports System with DIY Format (DIY-REGENCY-XXXX)
--- Run this in your Supabase SQL Editor: https://supabase.com/dashboard/project/_/sql
+-- GAMESKII: ATHLETE PASSPORT, RESULT SUBMISSIONS, UID CLAIMS
+-- Run in Supabase SQL Editor. Podium-only points: #1 +50, #2 +35, #3 +25.
 -- ==========================================================
 
--- 1. Create PROFILES Table
+CREATE TABLE IF NOT EXISTS public.account_roles (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'athlete' CHECK (role IN ('athlete','referee'))
+);
+
+CREATE OR REPLACE FUNCTION public.is_referee() RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT EXISTS (SELECT 1 FROM public.account_roles WHERE user_id = auth.uid() AND role = 'referee');
+$$;
+
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    full_name TEXT NOT NULL,
+    user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+    full_name TEXT NOT NULL,          -- private
+    whatsapp TEXT NOT NULL,           -- private
+    game_id TEXT NOT NULL,            -- private (raw UID)
+    uid_fingerprint TEXT,
     ign TEXT NOT NULL,
-    game_id TEXT NOT NULL,
-    regency TEXT NOT NULL CHECK (regency IN ('Sleman', 'Bantul', 'Yogyakarta', 'Gunungkidul', 'Kulon Progo', 'Belum Terverifikasi')),
-    regency_code TEXT NOT NULL CHECK (regency_code IN ('SLM', 'BTL', 'YOG', 'GKD', 'KLP', 'UNK')),
-    role TEXT NOT NULL,
-    primary_game TEXT NOT NULL DEFAULT 'Mobile Legends',
-    whatsapp TEXT NOT NULL,
-    gameskii_id TEXT UNIQUE NOT NULL, -- Format: DIY-SLM-8829
-    elo_points INTEGER NOT NULL DEFAULT 1200,
-    matches_played INTEGER NOT NULL DEFAULT 0,
-    wins INTEGER NOT NULL DEFAULT 0,
-    rank_tier TEXT NOT NULL DEFAULT 'Challenger DIY',
-    team_name TEXT DEFAULT '',
-    avatar_url TEXT DEFAULT '',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- 2. Create MATCHES Table
-CREATE TABLE IF NOT EXISTS public.matches (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    player_ign TEXT NOT NULL,
-    gameskii_id TEXT NOT NULL,
     regency TEXT NOT NULL,
-    match_type TEXT NOT NULL CHECK (match_type IN ('BePro Series', 'Tournament by Game Developer', 'Verified by ESI')),
-    game_name TEXT NOT NULL DEFAULT 'Mobile Legends',
-    result TEXT NOT NULL CHECK (result IN ('#1', '#2', '#3')),
-    rank_position INTEGER NOT NULL DEFAULT 1 CHECK (rank_position IN (1,2,3)),
-    kills INTEGER NOT NULL DEFAULT 0,
-    deaths INTEGER NOT NULL DEFAULT 0,
-    assists INTEGER NOT NULL DEFAULT 0,
-    proof_url TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'Pending Review' CHECK (status IN ('Verified', 'Pending Review', 'Disputed')),
-    dispute_reason TEXT,
-    disputed_by TEXT,
-    disputed_at TIMESTAMP WITH TIME ZONE,
-    verified_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    regency_code TEXT NOT NULL,
+    role TEXT NOT NULL,
+    primary_game TEXT NOT NULL DEFAULT 'Free Fire',
+    gameskii_id TEXT UNIQUE NOT NULL,
+    team_name TEXT DEFAULT '',
+    linked_athlete_id TEXT,           -- set only by a referee after an approved claim
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 3. ENABLE ROW LEVEL SECURITY (RLS)
+-- Public view without personal data.
+CREATE OR REPLACE VIEW public.public_profiles AS
+  SELECT id, ign, regency, regency_code, role, primary_game, gameskii_id, team_name, linked_athlete_id, created_at
+  FROM public.profiles;
+
+CREATE TABLE IF NOT EXISTS public.submissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    gameskii_id TEXT NOT NULL,
+    player_ign TEXT NOT NULL,
+    competition_id TEXT,
+    competition_name TEXT NOT NULL,
+    division TEXT NOT NULL,
+    team_name TEXT NOT NULL,
+    event_date DATE NOT NULL,
+    match_type TEXT NOT NULL,
+    game_name TEXT NOT NULL,
+    rank_position INTEGER NOT NULL CHECK (rank_position IN (1,2,3)),
+    proof_path TEXT NOT NULL,
+    note TEXT,
+    status TEXT NOT NULL DEFAULT 'Pending Review'
+      CHECK (status IN ('Pending Review','Verified','Rejected','Disputed')),
+    dispute_by UUID, dispute_reason TEXT, disputed_at TIMESTAMPTZ,
+    review_note TEXT, reviewed_by UUID, verified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (gameskii_id, competition_name, division)
+);
+
+CREATE TABLE IF NOT EXISTS public.uid_claims (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    profile_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    target_athlete_id TEXT NOT NULL,
+    evidence_note TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+    review_note TEXT, reviewed_by UUID, reviewed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.matches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.uid_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account_roles ENABLE ROW LEVEL SECURITY;
 
--- Profiles Policies
--- No public SELECT on private profiles: WhatsApp and raw game ID are personal data.
-CREATE POLICY "Users may read their own private profiles"
-ON public.profiles FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "own role" ON public.account_roles FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert their own profile" 
-ON public.profiles FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "own profile read" ON public.profiles FOR SELECT USING (auth.uid() = user_id OR public.is_referee());
+CREATE POLICY "own profile insert" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = user_id AND linked_athlete_id IS NULL);
+CREATE POLICY "own profile update" ON public.profiles FOR UPDATE USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can update own profile" 
-ON public.profiles FOR UPDATE USING (auth.uid() = user_id);
+-- Submissions are public to read (status feed), but personal proof files stay private.
+CREATE POLICY "read submissions" ON public.submissions FOR SELECT USING (true);
+CREATE POLICY "insert own pending" ON public.submissions FOR INSERT
+  WITH CHECK (auth.uid() = user_id AND status = 'Pending Review');
+-- Athletes cannot change status. Disputes and verification go through referee/RPC.
+CREATE POLICY "referee review" ON public.submissions FOR UPDATE
+  USING (public.is_referee() AND auth.uid() <> user_id);
 
--- Matches Policies
-CREATE POLICY "Users may read their own submissions"
-ON public.matches FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "own claims" ON public.uid_claims FOR SELECT USING (auth.uid() = user_id OR public.is_referee());
+CREATE POLICY "insert claim" ON public.uid_claims FOR INSERT WITH CHECK (auth.uid() = user_id AND status = 'pending');
+CREATE POLICY "referee decides claim" ON public.uid_claims FOR UPDATE USING (public.is_referee());
 
-CREATE POLICY "Users can insert their own match submissions" 
-ON public.matches FOR INSERT WITH CHECK (auth.uid() = user_id);
+-- Private storage bucket for proofs (served with signed URLs to owner/referee only).
+INSERT INTO storage.buckets (id, name, public) VALUES ('match-proofs', 'match-proofs', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
 
--- Regular users may dispute, but may NOT self-verify or change verified records.
--- Production verifier must be an authenticated trusted server/role, not the demo button.
-CREATE POLICY "Users can dispute their own pending submissions"
-ON public.matches FOR UPDATE
-USING (auth.uid() = user_id AND status = 'Pending Review')
-WITH CHECK (auth.uid() = user_id AND status IN ('Pending Review','Disputed'));
+CREATE POLICY "upload own proof" ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'match-proofs' AND auth.role() = 'authenticated'
+              AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "read own or referee" ON storage.objects FOR SELECT
+  USING (bucket_id = 'match-proofs' AND ((storage.foldername(name))[1] = auth.uid()::text OR public.is_referee()));
 
--- 4. CREATE STORAGE BUCKET: match-proofs
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('match-proofs', 'match-proofs', true)
-ON CONFLICT (id) DO NOTHING;
-
--- Storage Policies for match-proofs bucket
-CREATE POLICY "Public Access for Match Proofs" 
-ON storage.objects FOR SELECT 
-USING (bucket_id = 'match-proofs');
-
-CREATE POLICY "Authenticated Athletes can upload match proofs" 
-ON storage.objects FOR INSERT 
-WITH CHECK (bucket_id = 'match-proofs' AND auth.role() = 'authenticated');
-
--- 5. FUNCTION & TRIGGER: Auto-calculate ELO on tournament verification
-CREATE OR REPLACE FUNCTION public.handle_tournament_verification()
-RETURNS TRIGGER AS $$
-DECLARE
-    delta INTEGER := 0;
-    is_win BOOLEAN := false;
-BEGIN
-    IF (NEW.status = 'Verified' AND (OLD.status IS DISTINCT FROM 'Verified')) THEN
-        -- Calculate point delta by rank
-        IF (NEW.result = '#1' OR NEW.rank_position = 1) THEN
-            delta := 50;
-            is_win := true;
-        ELSIF (NEW.result = '#2' OR NEW.rank_position = 2) THEN
-            delta := 35;
-            is_win := true;
-        ELSIF (NEW.result = '#3' OR NEW.rank_position = 3) THEN
-            delta := 25;
-            is_win := true;
-        ELSE
-            -- Legacy non-podium positions never receive points.
-            RETURN NEW;
-        END IF;
-
-        UPDATE public.profiles
-        SET 
-            matches_played = matches_played + 1,
-            wins = CASE WHEN is_win THEN wins + 1 ELSE wins END,
-            elo_points = GREATEST(800, elo_points + delta),
-            rank_tier = CASE 
-                WHEN (elo_points + delta) >= 1600 THEN 'Grand Master DIY'
-                WHEN (elo_points + delta) >= 1400 THEN 'Master DIY'
-                WHEN (elo_points + delta) >= 1200 THEN 'Challenger DIY'
-                WHEN (elo_points + delta) >= 1000 THEN 'Prospect DIY'
-                ELSE 'Rookie DIY'
-            END,
-            updated_at = timezone('utc'::text, now())
-        WHERE gameskii_id = NEW.gameskii_id;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE OR REPLACE TRIGGER on_tournament_verified
-    AFTER UPDATE OF status ON public.matches
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_tournament_verification();
+-- Leaderboard points are derived (base 1200 + verified podium points), never stored by clients.
+CREATE OR REPLACE VIEW public.submission_points AS
+  SELECT gameskii_id,
+         SUM(CASE rank_position WHEN 1 THEN 50 WHEN 2 THEN 35 WHEN 3 THEN 25 ELSE 0 END) AS points,
+         COUNT(*) AS podiums,
+         COUNT(*) FILTER (WHERE rank_position = 1) AS titles
+  FROM public.submissions WHERE status = 'Verified'
+  GROUP BY gameskii_id;
 `;

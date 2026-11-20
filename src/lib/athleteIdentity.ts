@@ -11,3 +11,15 @@ export async function fingerprintFreeFireUid(raw: string): Promise<string | null
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
+
+/** Local-demo password hash. Production must use Supabase Auth (bcrypt server-side). */
+export async function hashPassword(email: string, password: string): Promise<string> {
+  const bytes = new TextEncoder().encode('gameskii:pw:v1:' + email.toLowerCase().trim() + ':' + password);
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export function maskUid(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  return digits.length >= 4 ? '••••' + digits.slice(-4) : '••••';
+}
